@@ -1,4 +1,8 @@
-let map, marker, watchId, destinationCoords;
+let map, userMarker, destinationMarker;
+let watchId;
+let userPosition = null;
+let destinationPosition = null;
+let directionsService, directionsRenderer;
 
 function nextStage(stageId) {
   document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
@@ -7,24 +11,38 @@ function nextStage(stageId) {
 }
 
 function initMap() {
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer();
+
   navigator.geolocation.getCurrentPosition(position => {
-    const userLocation = {
+    userPosition = {
       lat: position.coords.latitude,
       lng: position.coords.longitude
     };
 
     map = new google.maps.Map(document.getElementById('map'), {
-      center: userLocation,
+      center: userPosition,
       zoom: 15
     });
 
-    marker = new google.maps.Marker({
-      position: userLocation,
+    directionsRenderer.setMap(map);
+
+    userMarker = new google.maps.Marker({
+      position: userPosition,
       map,
-      title: "You are here"
+      title: "Your Location",
+      icon: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
     });
 
+    document.getElementById('from-location').textContent = `Lat: ${userPosition.lat.toFixed(4)}, Lng: ${userPosition.lng.toFixed(4)}`;
+
+    // Watch position changes
     watchId = navigator.geolocation.watchPosition(updateLocation);
+
+    // Map click to set destination
+    map.addListener("click", function (event) {
+      setDestination(event.latLng);
+    });
   });
 }
 
@@ -34,48 +52,47 @@ function updateLocation(position) {
     lng: position.coords.longitude
   };
 
-  marker.setPosition(newPos);
-  map.panTo(newPos);
+  userMarker.setPosition(newPos);
+  userPosition = newPos;
 
-  if (destinationCoords) {
-    const distance = computeDistance(newPos, destinationCoords);
-    const speed = position.coords.speed || 50 / 3.6; // fallback 50km/h
-    const eta = distance / speed;
-    document.getElementById("etaDisplay").textContent = `ETA: ${eta.toFixed(2)} min`;
+  if (destinationPosition) {
+    drawRoute();
   }
 }
 
-function calculateRoute() {
-  const dest = document.getElementById('destination').value;
-  const geocoder = new google.maps.Geocoder();
+function setDestination(latLng) {
+  destinationPosition = {
+    lat: latLng.lat(),
+    lng: latLng.lng()
+  };
 
-  geocoder.geocode({ address: dest }, function(results, status) {
-    if (status === 'OK') {
-      destinationCoords = results[0].geometry.location;
-      new google.maps.Marker({
-        position: destinationCoords,
-        map,
-        title: "Destination"
-      });
-      map.panTo(destinationCoords);
-    } else {
-      alert("Could not find location: " + status);
-    }
+  if (destinationMarker) destinationMarker.setMap(null);
+  destinationMarker = new google.maps.Marker({
+    position: destinationPosition,
+    map,
+    title: "Destination",
+    icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
   });
+
+  drawRoute();
 }
 
-function computeDistance(pos1, pos2) {
-  const R = 6371e3; // metres
-  const φ1 = pos1.lat * Math.PI / 180;
-  const φ2 = pos2.lat() * Math.PI / 180;
-  const Δφ = (pos2.lat() - pos1.lat) * Math.PI / 180;
-  const Δλ = (pos2.lng() - pos1.lng) * Math.PI / 180;
+function drawRoute() {
+  directionsService.route(
+    {
+      origin: userPosition,
+      destination: destinationPosition,
+      travelMode: google.maps.TravelMode.DRIVING,
+    },
+    (response, status) => {
+      if (status === "OK") {
+        directionsRenderer.setDirections(response);
 
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  const d = R * c;
-  return d / 1000 * 60; // return minutes if speed is in m/s
+        const duration = response.routes[0].legs[0].duration.text;
+        document.getElementById("etaDisplay").textContent = `ETA: ${duration}`;
+      } else {
+        alert("Directions request failed due to " + status);
+      }
+    }
+  );
 }

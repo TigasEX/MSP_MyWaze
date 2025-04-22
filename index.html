@@ -15,25 +15,21 @@
 
   <div class="container hidden" id="vehicle-stage">
     <h2>Register Vehicle</h2>
-    <select id="vehicleType">
-      <option value="car">Car</option>
-      <option value="motorcycle">Motorcycle</option>
-      <option value="truck">Truck</option>
-    </select>
+    <input type="Vehicle" placeholder="Vehicle" id="Vehicle" />
     <button onclick="nextStage('map-stage')">Next</button>
   </div>
 
   <div id="map-stage" class="hidden">
     <div id="map-controls">
       <h3>Define Route</h3>
-      <input type="text" id="destination" placeholder="Enter Destination" />
-      <button onclick="calculateRoute()">Set Route</button>
+      <p><strong>From:</strong> <span id="from-location">Detecting...</span></p>
+      <p><strong>To:</strong> Click on the map</p>
     </div>
     <div id="map"></div>
     <div id="etaDisplay">ETA: --</div>
   </div>
 
   <script src="script.js"></script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOTAYDQctVnSb6DNxy9UjP-ozgLQEyMN0&libraries=places"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOTAYDQctVnSb6DNxy9UjP-ozgLQEyMN0&libraries=geometry"></script>
 </body>
 </html>

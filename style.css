@@ -43,4 +43,6 @@ body {
     font-weight: bold;
     z-index: 999;
   }
-  
+  #map-controls p {
+    margin: 4px 0;
+  }  
