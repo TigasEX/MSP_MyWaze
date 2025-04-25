@@ -1,35 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>MyWaze</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="container" id="register-stage">
-    <h2>Register Account</h2>
-    <input type="text" placeholder="Username" id="username" />
-    <input type="password" placeholder="Password" id="password" />
-    <button onclick="nextStage('vehicle-stage')">Register</button>
-  </div>
-
-  <div class="container hidden" id="vehicle-stage">
-    <h2>Register Vehicle</h2>
-    <input type="Vehicle" placeholder="Vehicle" id="Vehicle" />
-    <button onclick="nextStage('map-stage')">Next</button>
-  </div>
-
-  <div id="map-stage" class="hidden">
-    <div id="map-controls">
-      <h3>Define Route</h3>
-      <p><strong>From:</strong> <span id="from-location">Detecting...</span></p>
-      <p><strong>To:</strong> Click on the map</p>
-    </div>
-    <div id="map"></div>
-    <div id="etaDisplay">ETA: --</div>
-  </div>
-
-  <script src="script.js"></script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOTAYDQctVnSb6DNxy9UjP-ozgLQEyMN0&libraries=geometry"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyWaze</title>
+    <link rel="stylesheet" href="/src/assets/main.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>
