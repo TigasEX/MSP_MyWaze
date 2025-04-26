@@ -100,8 +100,14 @@
       >
         <Marker v-for="(marker, index) in markers" :key="index" :options="{ position: marker }" />
         <Marker :options="{ position: center, icon: carMarkerIcon }" />
+        <Polyline :path="routePath" :options="routeOptions" />
       </GoogleMap>
       <button @click="centerMap" class="bg-blue-500 text-white p-2 rounded mt-4">Center Map</button>
+      <div class="bg-white p-4 mt-4 rounded shadow" v-if="routeInfo.duration">
+        <p><strong>Estimated Time:</strong> {{ routeInfo.duration }}</p>
+        <p><strong>Distance:</strong> {{ routeInfo.distance }}</p>
+      </div>
+
 
       <div class="flex justify-center space-x-4 mt-4">
         <button
@@ -144,9 +150,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { carDatabase } from './carDatabase.js'
-import { GoogleMap, Marker } from 'vue3-google-map'
+import { GoogleMap, Marker, Polyline } from 'vue3-google-map'
 import { UserManager } from './UserManager'
 import { setSessionToken, getSessionToken } from './tokenOperations.js'
+import polyline from '@mapbox/polyline'
 
 const email = ref('')
 const password = ref('')
@@ -162,6 +169,14 @@ const center = ref({ lat: 38.72936883885257, lng: -9.15282508593812 })
 const mapRef = ref(null) // Declare mapRef as a reactive reference
 const speedLimit = ref(null) // Reactive reference for speed limit
 const markers = ref([]) // Reactive reference for destination markers
+const routePath = ref([])
+const routeOptions = {
+  strokeColor: '#4285F4',
+  strokeOpacity: 0.8,
+  strokeWeight: 6,
+}
+const routeInfo = ref({ duration: '', distance: '' })
+
 
 const carMarkerIcon = {
   url: 'src/assets/car_images/car_icon.png', // Custom car marker image
@@ -367,61 +382,68 @@ const calculateRoute = async () => {
 
   const destination = markers.value[0]
   const origin = center.value
-
+  
   try {
     const response = await fetch(
-      'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix',
+      'https://routes.googleapis.com/directions/v2:computeRoutes',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': 'AIzaSyCnEGAMvieNpzlk641s6HsbIsfVkydLOvI',
           'X-Goog-FieldMask':
-            'originIndex,destinationIndex,duration,distanceMeters,status,condition',
+            'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
         },
         body: JSON.stringify({
-          origins: [
-            {
-              waypoint: {
-                location: {
-                  latLng: {
-                    latitude: origin.lat,
-                    longitude: origin.lng,
-                  },
-                },
-              },
-              routeModifiers: { avoid_ferries: true },
-            },
-          ],
-          destinations: [
-            {
-              waypoint: {
-                location: {
-                  latLng: {
-                    latitude: destination.lat,
-                    longitude: destination.lng,
-                  },
-                },
+          origin: {
+            location: {
+              latLng: {
+                latitude: origin.lat,
+                longitude: origin.lng,
               },
             },
-          ],
+          },
+          destination: {
+            location: {
+              latLng: {
+                latitude: destination.lat,
+                longitude: destination.lng,
+              },
+            },
+          },
           travelMode: 'DRIVE',
-          routingPreference: 'TRAFFIC_AWARE',
         }),
-      },
+      }
     )
 
     const data = await response.json()
+    const route = data.routes?.[0]
 
-    if (data && data[0] && data[0].status === 'OK') {
-      console.log('Route details:', data[0])
-      // You can add logic here to display the route details on the map
-    } else {
-      console.warn('No valid route found.')
+    if (route) {
+      // Decode polyline
+      routePath.value = decodePolyline(route.polyline.encodedPolyline)
+
+      // Format time and distance
+      routeInfo.value = {
+        duration: formatDuration(route.duration),
+        distance: `${(route.distanceMeters / 1000).toFixed(1)} km`,
+      }
     }
   } catch (error) {
     console.error('Error fetching route:', error)
   }
+}
+
+function decodePolyline(encoded) {
+  const coords = polyline.decode(encoded)
+  return coords.map(([lat, lng]) => ({ lat, lng }))
+}
+
+function formatDuration(durationStr) {
+  const match = durationStr.match(/(\d+)s/)
+  const seconds = match ? parseInt(match[1], 10) : 0
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes} min`
 }
 
 onMounted(() => {
