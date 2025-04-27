@@ -19,3 +19,15 @@ export class UserManager {
     return true
   }
 }
+
+// Create a singleton instance of the UserManager class
+const userManager = new UserManager()
+
+// Export individual functions that use the userManager instance
+export const userRegister = (email, password) => {
+  return userManager.register(email, password)
+}
+
+export const userLogin = (email, password) => {
+  return userManager.login(email, password)
+}

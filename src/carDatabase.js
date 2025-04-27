@@ -1,4 +1,4 @@
-export const carDatabase = [
+const carData = [
   {
     brand: 'Toyota',
     models: [
@@ -340,3 +340,6 @@ export const carDatabase = [
     ],
   },
 ]
+
+export const carDatabase = carData
+export const cars = carData
