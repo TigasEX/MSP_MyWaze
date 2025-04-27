@@ -23,6 +23,7 @@ Tiago Sequeira - 55354
 - **Maps**: Google Maps API
 - **State Management**: Vue Composition API
 - **Build Tools**: Vite
+- **AI Assistance**: GitHub Copilot
 - **APIs**: Google Routes API, HERE Maps API (for speed limits)
 
 ## Getting Started
