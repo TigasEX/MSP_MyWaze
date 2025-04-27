@@ -330,6 +330,7 @@ import { carDatabase } from './carDatabase.js'
 import { GoogleMap, Marker, Polyline } from 'vue3-google-map'
 import { UserManager } from './UserManager'
 import { setSessionToken, getSessionToken } from './tokenOperations.js'
+import polyline from '@mapbox/polyline'
 
 // ===== API Keys =====
 const googleMapsApiKey =
@@ -785,6 +786,7 @@ const calculateRoute = async () => {
     })
 
     const data = await response.json()
+    const route = data.routes?.[0]
 
     if (data.routes && data.routes.length > 0) {
       const route = data.routes[0]
