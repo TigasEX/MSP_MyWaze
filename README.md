@@ -1,4 +1,4 @@
-# MyWaze - Interactive Navigation Application
+# MyWaze
 
 ![MyWaze Logo](src/assets/car_images/car_icon.png)
 
@@ -40,7 +40,7 @@ Tiago Sequeira - 55354
 1. Clone the repository:
 
 ```sh
-git clone https://github.com/yourusername/msp-mywaze.git
+git clone https://github.com/yourusername/MSP_MyWaze
 cd msp-mywaze
 ```
 
@@ -50,7 +50,7 @@ cd msp-mywaze
 npm install
 ```
 
-3. Create a `.env` file in the root directory and add your API keys:
+3. Create a `.env` file in the root directory and add your API keys (if you don't, will default to mine 😞):
 
 ```
 VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
