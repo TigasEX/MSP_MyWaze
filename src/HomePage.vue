@@ -364,6 +364,12 @@ const timeOfArrival = ref('')
 const currentDistance = ref(0)
 const routeDefined = ref(false)
 
+// Speed limit optimization variables
+const lastSpeedLimitPosition = ref({ lat: 0, lng: 0 });
+const speedLimitThreshold = 0.0005; // About 50 meters in decimal degrees
+const speedLimitRequestTimestamp = ref(0);
+const speedLimitRequestMinInterval = 1000; // Minimum time between requests in milliseconds
+
 // Map configuration options
 const mapOptions = {
   keyboardShortcuts: false, // Disable keyboard shortcuts for map to use WASD for movement
@@ -726,8 +732,30 @@ const startMoving = (direction) => {
         break;
     }
     
-    // Update speed limit based on new location
-    fetchSpeedLimit(center.value.lat, center.value.lng);
+    // Only update speed limit if we've moved far enough from the last update position
+    // or if enough time has passed since the last request
+    const currentTime = Date.now();
+    const timeSinceLastRequest = currentTime - speedLimitRequestTimestamp.value;
+    const distance = calculateDistance(
+      center.value.lat, center.value.lng,
+      lastSpeedLimitPosition.value.lat, lastSpeedLimitPosition.value.lng
+    ) * 1000; // Convert to meters
+    
+    if (distance > speedLimitThreshold * 111000 || // Convert threshold to approx meters (1 deg ≈ 111km)
+        timeSinceLastRequest > speedLimitRequestMinInterval) {
+      // Update last position and timestamp
+      lastSpeedLimitPosition.value = {
+        lat: center.value.lat,
+        lng: center.value.lng
+      };
+      speedLimitRequestTimestamp.value = currentTime;
+      
+      // Update speed limit based on new location
+      fetchSpeedLimit(center.value.lat, center.value.lng);
+      
+      // Log for debugging
+      console.log(`Speed limit updated after moving ${distance.toFixed(1)}m`);
+    }
     
     // Update route if one is defined
     if (markers.value.length > 0) {
@@ -905,6 +933,11 @@ const calculateRoute = async () => {
 
 // Calculate distance between two points using Haversine formula
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  // If the last position is not set (0,0), return a large number to force update
+  if (lat2 === 0 && lon2 === 0) {
+    return 999;
+  }
+  
   const R = 6371 // Radius of the earth in km
   const dLat = deg2rad(lat2 - lat1)
   const dLon = deg2rad(lon2 - lon1)
