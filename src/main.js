@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
 //import HomePage from './HomePage.vue'
-import HomePage1 from './HomaPage1.vue'
+import HomePage from './HomePage.vue'
 
-createApp(HomePage1).mount('#app')
+createApp(HomePage).mount('#app')
