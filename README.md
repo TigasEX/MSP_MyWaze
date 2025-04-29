@@ -50,7 +50,7 @@ cd msp-mywaze
 npm install
 ```
 
-3. Create a `.env` file in the root directory and add your API keys (if you don't, will default to mine 😞):
+3. Create a `.env` file in the root directory and add your API keys (while we have a here api backup key, we do not provide a google maps api key here, please provide your own):
 
 ```
 VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
