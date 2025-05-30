@@ -1,0 +1,50 @@
+[
+  [
+    "user@user",
+    {
+      "id": "user_default001",
+      "email": "user@user",
+      "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+      "name": "DefaultUser123",
+      "registeredAt": 1748618132939,
+      "vehicles": [
+        {
+          "id": "vehicle_001",
+          "name": "My Corolla",
+          "brand": "Toyota",
+          "model": "Corolla",
+          "image": "src/assets/car_images/toyota_corolla.jpg",
+          "isSelected": true
+        }
+      ],
+      "savedRoutes": [],
+      "username": "user"
+    }
+  ],
+  [
+    "tigas@tigas",
+    {
+      "id": "user_fc86aa750b2859c2",
+      "email": "tigas@tigas",
+      "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+      "name": "QuickExplorer4",
+      "registeredAt": 1748618412835,
+      "vehicles": [],
+      "savedRoutes": [],
+      "username": "tigas"
+    }
+  ],
+  [
+    "tigas2@tigas2",
+    {
+      "id": "user_f303b759a951087e",
+      "email": "tigas2@tigas2",
+      "password": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+      "name": "Tiago Sequeira",
+      "username": "tigas",
+      "registeredAt": 1748632084993,
+      "vehicles": [],
+      "savedRoutes": []
+    }
+  ]
+]

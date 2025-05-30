@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Waypoints</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .debug-panel {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .clear-button {
+            background: #dc3545;
+        }
+        .clear-button:hover {
+            background: #c82333;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Waypoint System Debug</h1>
+    
+    <div class="debug-panel">
+        <h2>Store State</h2>
+        <pre id="store-state"></pre>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>Test Actions</h2>
+        <button class="test-button" onclick="testAddDestination()">Add Test Destination</button>
+        <button class="test-button" onclick="testAddWaypoint()">Add Test Waypoint</button>
+        <button class="test-button" onclick="testStartWaypointMode()">Start Waypoint Mode</button>
+        <button class="test-button" onclick="testStopWaypointMode()">Stop Waypoint Mode</button>
+        <button class="test-button clear-button" onclick="testClearAll()">Clear All</button>
+        <button class="test-button" onclick="refreshState()">Refresh State</button>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>Console Log</h2>
+        <div id="log" class="log"></div>
+        <button class="test-button" onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        let store = null;
+        
+        // Try to get the store from the main app
+        function getStore() {
+            try {
+                // Try to get store from parent window (if this is opened as iframe)
+                if (window.parent && window.parent.store) {
+                    return window.parent.store;
+                }
+                
+                // Try to access store from main window
+                if (window.opener && window.opener.store) {
+                    return window.opener.store;
+                }
+                
+                // For testing, create a mock store
+                log('Could not access main app store, creating mock store for testing');
+                return createMockStore();
+            } catch (error) {
+                log('Error accessing store: ' + error.message);
+                return createMockStore();
+            }
+        }
+        
+        function createMockStore() {
+            return {
+                routePlanning: {
+                    isAddingWaypoints: false,
+                    waypoints: []
+                },
+                markers: [],
+                routeData: {
+                    path: null,
+                    details: null
+                },
+                currentPosition: { lat: 38.72936883885257, lng: -9.15282508593812 },
+                addDestinationAsWaypoint: function(dest) {
+                    this.clearWaypoints();
+                    const waypoint = {
+                        id: Date.now() + Math.random(),
+                        order: 0,
+                        name: 'Destination',
+                        ...dest
+                    };
+                    this.routePlanning.waypoints.push(waypoint);
+                    log('Mock: Added destination as waypoint');
+                    return waypoint;
+                },
+                addWaypoint: function(waypoint) {
+                    const newWaypoint = {
+                        id: Date.now() + Math.random(),
+                        order: this.routePlanning.waypoints.length,
+                        name: waypoint.name || `Waypoint ${this.routePlanning.waypoints.length + 1}`,
+                        ...waypoint
+                    };
+                    this.routePlanning.waypoints.push(newWaypoint);
+                    log('Mock: Added waypoint');
+                    return newWaypoint;
+                },
+                startWaypointMode: function() {
+                    this.routePlanning.isAddingWaypoints = true;
+                    log('Mock: Started waypoint mode');
+                },
+                stopWaypointMode: function() {
+                    this.routePlanning.isAddingWaypoints = false;
+                    log('Mock: Stopped waypoint mode');
+                },
+                clearWaypoints: function() {
+                    this.routePlanning.waypoints = [];
+                    this.routePlanning.isAddingWaypoints = false;
+                    log('Mock: Cleared waypoints');
+                },
+                clearMarkers: function() {
+                    this.markers = [];
+                    log('Mock: Cleared markers');
+                },
+                clearRoute: function() {
+                    this.routeData = { path: null, details: null };
+                    log('Mock: Cleared route');
+                }
+            };
+        }
+        
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+        
+        function refreshState() {
+            store = getStore();
+            const stateElement = document.getElementById('store-state');
+            stateElement.textContent = JSON.stringify({
+                routePlanning: store.routePlanning,
+                markers: store.markers,
+                routeData: store.routeData,
+                currentPosition: store.currentPosition
+            }, null, 2);
+            log('State refreshed');
+        }
+        
+        function testAddDestination() {
+            if (!store) {
+                log('Store not available');
+                return;
+            }
+            
+            const testDest = {
+                lat: 38.75,
+                lng: -9.18
+            };
+            
+            log('Testing add destination...');
+            try {
+                const waypoint = store.addDestinationAsWaypoint(testDest);
+                log(`Added destination waypoint: ${JSON.stringify(waypoint)}`);
+                refreshState();
+            } catch (error) {
+                log(`Error adding destination: ${error.message}`);
+            }
+        }
+        
+        function testAddWaypoint() {
+            if (!store) {
+                log('Store not available');
+                return;
+            }
+            
+            const testWaypoint = {
+                lat: 38.76,
+                lng: -9.16
+            };
+            
+            log('Testing add waypoint...');
+            try {
+                const waypoint = store.addWaypoint(testWaypoint);
+                log(`Added waypoint: ${JSON.stringify(waypoint)}`);
+                refreshState();
+            } catch (error) {
+                log(`Error adding waypoint: ${error.message}`);
+            }
+        }
+        
+        function testStartWaypointMode() {
+            if (!store) {
+                log('Store not available');
+                return;
+            }
+            
+            log('Testing start waypoint mode...');
+            try {
+                store.startWaypointMode();
+                log('Waypoint mode started');
+                refreshState();
+            } catch (error) {
+                log(`Error starting waypoint mode: ${error.message}`);
+            }
+        }
+        
+        function testStopWaypointMode() {
+            if (!store) {
+                log('Store not available');
+                return;
+            }
+            
+            log('Testing stop waypoint mode...');
+            try {
+                store.stopWaypointMode();
+                log('Waypoint mode stopped');
+                refreshState();
+            } catch (error) {
+                log(`Error stopping waypoint mode: ${error.message}`);
+            }
+        }
+        
+        function testClearAll() {
+            if (!store) {
+                log('Store not available');
+                return;
+            }
+            
+            log('Testing clear all...');
+            try {
+                store.clearRoute();
+                store.clearWaypoints();
+                store.clearMarkers();
+                store.stopWaypointMode();
+                log('All cleared successfully');
+                refreshState();
+            } catch (error) {
+                log(`Error clearing: ${error.message}`);
+            }
+        }
+        
+        // Initialize
+        window.onload = function() {
+            store = getStore();
+            refreshState();
+            log('Debug panel initialized');
+        };
+    </script>
+</body>
+</html>
