@@ -34,6 +34,7 @@ const wss = new WebSocketServer({ server });
 const DATA_DIR = './server_data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const ROUTES_FILE = path.join(DATA_DIR, 'routes.json');
+const SPEED_TRAPS_FILE = path.join(DATA_DIR, 'speed_traps.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -43,6 +44,7 @@ if (!fs.existsSync(DATA_DIR)) {
 // Persistent user storage
 let persistentUsers = new Map();
 let userRoutes = new Map();
+let speedTraps = new Map(); // Maps speedTrapId -> { id, latitude, longitude, addedBy, addedAt, verified }
 
 // Store connected users (WebSocket connections)
 const connectedUsers = new Map();
@@ -136,6 +138,13 @@ function loadPersistentData() {
       userRoutes = new Map(routesData);
       console.log(`Loaded ${userRoutes.size} saved routes`);
     }
+
+    // Load speed traps
+    if (fs.existsSync(SPEED_TRAPS_FILE)) {
+      const speedTrapsData = JSON.parse(fs.readFileSync(SPEED_TRAPS_FILE, 'utf8'));
+      speedTraps = new Map(speedTrapsData);
+      console.log(`Loaded ${speedTraps.size} speed traps`);
+    }
   } catch (error) {
     console.error('Error loading persistent data:', error);
   }
@@ -149,6 +158,7 @@ function savePersistentData() {
   try {
     fs.writeFileSync(USERS_FILE, JSON.stringify(Array.from(persistentUsers.entries()), null, 2));
     fs.writeFileSync(ROUTES_FILE, JSON.stringify(Array.from(userRoutes.entries()), null, 2));
+    fs.writeFileSync(SPEED_TRAPS_FILE, JSON.stringify(Array.from(speedTraps.entries()), null, 2));
     console.log('Persistent data saved successfully');
   } catch (error) {
     console.error('Error saving persistent data:', error);
@@ -405,6 +415,166 @@ function updateUserUsername(email, newUsername) {
   user.username = newUsername.trim();
   savePersistentData();
   return user;
+}
+
+/**
+ * ===== SPEED TRAP MANAGEMENT FUNCTIONS =====
+ */
+
+/**
+ * Add a new speed trap to the database
+ * @param {number} latitude - Speed trap latitude
+ * @param {number} longitude - Speed trap longitude
+ * @param {string} addedBy - Email of user who added the speed trap
+ * @returns {Object} Speed trap object with generated ID
+ */
+function addSpeedTrap(latitude, longitude, addedBy) {
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+  const currentTime = Date.now();
+  
+  // Check for proximity to existing speed traps (10 meters minimum distance)
+  const MIN_DISTANCE_METERS = 10;
+  const MIN_DISTANCE_KM = MIN_DISTANCE_METERS / 1000;
+  
+  for (const existingTrap of speedTraps.values()) {
+    const distance = calculateDistance(lat, lng, existingTrap.latitude, existingTrap.longitude);
+    if (distance <= MIN_DISTANCE_KM) {
+      throw new Error(`Speed trap too close to existing one. Minimum distance is ${MIN_DISTANCE_METERS} meters.`);
+    }
+  }
+  
+  // Check rate limiting - same user can't add speed trap within 2 minutes
+  const RATE_LIMIT_MS = 2 * 60 * 1000; // 2 minutes
+  
+  for (const existingTrap of speedTraps.values()) {
+    if (existingTrap.addedBy === addedBy && 
+        (currentTime - existingTrap.addedAt) < RATE_LIMIT_MS) {
+      const timeLeft = Math.ceil((RATE_LIMIT_MS - (currentTime - existingTrap.addedAt)) / 1000);
+      throw new Error(`Please wait ${timeLeft} seconds before adding another speed trap.`);
+    }
+  }
+  
+  const speedTrapId = 'speedtrap_' + crypto.randomBytes(8).toString('hex');
+  const speedTrap = {
+    id: speedTrapId,
+    latitude: lat,
+    longitude: lng,
+    addedBy: addedBy,
+    addedAt: currentTime,
+    verified: false,
+    reports: 1
+  };
+
+  speedTraps.set(speedTrapId, speedTrap);
+  savePersistentData();
+  
+  // Broadcast to all connected users
+  broadcastToAll({
+    type: 'speed_trap_added',
+    speedTrap: speedTrap,
+    timestamp: currentTime
+  });
+  
+  console.log(`Speed trap added at ${lat}, ${lng} by ${addedBy}`);
+  return speedTrap;
+}
+
+/**
+ * Get all speed traps from the database
+ * @returns {Array} Array of all speed trap objects
+ */
+function getAllSpeedTraps() {
+  return Array.from(speedTraps.values());
+}
+
+/**
+ * Get speed traps within a certain radius of a location
+ * @param {number} latitude - Center latitude
+ * @param {number} longitude - Center longitude
+ * @param {number} radius - Radius in kilometers (default: 10km)
+ * @returns {Array} Array of speed trap objects within radius
+ */
+function getSpeedTrapsNearLocation(latitude, longitude, radius = 10) {
+  const nearbyTraps = [];
+  
+  speedTraps.forEach(speedTrap => {
+    const distance = calculateDistance(
+      latitude, longitude,
+      speedTrap.latitude, speedTrap.longitude
+    );
+    
+    if (distance <= radius) {
+      nearbyTraps.push({
+        ...speedTrap,
+        distance: distance
+      });
+    }
+  });
+  
+  // Sort by distance
+  nearbyTraps.sort((a, b) => a.distance - b.distance);
+  return nearbyTraps;
+}
+
+/**
+ * Remove a speed trap from the database
+ * @param {string} speedTrapId - Speed trap ID to remove
+ * @param {string} removedBy - Email of user removing the speed trap
+ * @returns {boolean} True if speed trap was removed
+ */
+function removeSpeedTrap(speedTrapId, removedBy) {
+  const speedTrap = speedTraps.get(speedTrapId);
+  if (!speedTrap) {
+    throw new Error('Speed trap not found');
+  }
+  
+  speedTraps.delete(speedTrapId);
+  savePersistentData();
+  
+  // Broadcast to all connected users
+  broadcastToAll({
+    type: 'speed_trap_removed',
+    speedTrapId: speedTrapId,
+    removedBy: removedBy,
+    timestamp: Date.now()
+  });
+  
+  console.log(`Speed trap ${speedTrapId} removed by ${removedBy}`);
+  return true;
+}
+
+/**
+ * Verify/report a speed trap (increases confidence)
+ * @param {string} speedTrapId - Speed trap ID to verify
+ * @param {string} verifiedBy - Email of user verifying the speed trap
+ * @returns {Object} Updated speed trap object
+ */
+function verifySpeedTrap(speedTrapId, verifiedBy) {
+  const speedTrap = speedTraps.get(speedTrapId);
+  if (!speedTrap) {
+    throw new Error('Speed trap not found');
+  }
+  
+  speedTrap.reports = (speedTrap.reports || 1) + 1;
+  if (speedTrap.reports >= 3) {
+    speedTrap.verified = true;
+  }
+  speedTrap.lastVerified = Date.now();
+  speedTrap.lastVerifiedBy = verifiedBy;
+  
+  savePersistentData();
+  
+  // Broadcast to all connected users
+  broadcastToAll({
+    type: 'speed_trap_verified',
+    speedTrap: speedTrap,
+    verifiedBy: verifiedBy,
+    timestamp: Date.now()
+  });
+  
+  console.log(`Speed trap ${speedTrapId} verified by ${verifiedBy} (${speedTrap.reports} reports)`);
+  return speedTrap;
 }
 
 // Generate random user name
@@ -752,6 +922,115 @@ function handleUpdateUsername(req, res) {
   });
 }
 
+/**
+ * ===== SPEED TRAP HTTP HANDLERS =====
+ */
+
+function handleAddSpeedTrap(req, res) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { latitude, longitude, addedBy } = JSON.parse(body);
+      
+      if (!latitude || !longitude || !addedBy) {
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(400);
+        res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+        return;
+      }
+      
+      const speedTrap = addSpeedTrap(latitude, longitude, addedBy);
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true, speedTrap }));
+    } catch (error) {
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(400);
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+  });
+}
+
+function handleGetSpeedTraps(req, res) {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const latitude = parseFloat(url.searchParams.get('lat'));
+    const longitude = parseFloat(url.searchParams.get('lng'));
+    const radius = parseFloat(url.searchParams.get('radius')) || 10;
+    
+    let speedTraps;
+    if (latitude && longitude) {
+      speedTraps = getSpeedTrapsNearLocation(latitude, longitude, radius);
+    } else {
+      speedTraps = getAllSpeedTraps();
+    }
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.writeHead(200);
+    res.end(JSON.stringify({ success: true, speedTraps }));
+  } catch (error) {
+    res.setHeader('Content-Type', 'application/json');
+    res.writeHead(400);
+    res.end(JSON.stringify({ success: false, error: error.message }));
+  }
+}
+
+function handleVerifySpeedTrap(req, res) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { speedTrapId, verifiedBy } = JSON.parse(body);
+      
+      if (!speedTrapId || !verifiedBy) {
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(400);
+        res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+        return;
+      }
+      
+      const speedTrap = verifySpeedTrap(speedTrapId, verifiedBy);
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true, speedTrap }));
+    } catch (error) {
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(400);
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+  });
+}
+
+function handleRemoveSpeedTrap(req, res) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const { speedTrapId, removedBy } = JSON.parse(body);
+      
+      if (!speedTrapId || !removedBy) {
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(400);
+        res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+        return;
+      }
+      
+      const success = removeSpeedTrap(speedTrapId, removedBy);
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(200);
+      res.end(JSON.stringify({ success }));
+    } catch (error) {
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(400);
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
+  });
+}
+
 // Add HTTP routes for user management
 server.on('request', (req, res) => {
   // CORS headers
@@ -803,6 +1082,14 @@ server.on('request', (req, res) => {
       handleUserLogout(req, res);
     } else if (pathname === '/api/update-username' && req.method === 'POST') {
       handleUpdateUsername(req, res);
+    } else if (pathname === '/api/speed-traps/add' && req.method === 'POST') {
+      handleAddSpeedTrap(req, res);
+    } else if (pathname === '/api/speed-traps' && req.method === 'GET') {
+      handleGetSpeedTraps(req, res);
+    } else if (pathname === '/api/speed-traps/verify' && req.method === 'POST') {
+      handleVerifySpeedTrap(req, res);
+    } else if (pathname === '/api/speed-traps/remove' && req.method === 'POST') {
+      handleRemoveSpeedTrap(req, res);
     } else if (pathname === '/api/car-database' && req.method === 'GET') {
       res.setHeader('Content-Type', 'application/json');
       res.writeHead(200);
@@ -918,6 +1205,14 @@ wss.on('connection', (ws) => {
                 authenticatedEmail: authenticatedEmail,
                 message: 'Successfully authenticated'
               }));
+
+              // Send speed traps to authenticated user
+              const allSpeedTraps = getAllSpeedTraps();
+              ws.send(JSON.stringify({
+                type: 'speed_traps_data',
+                speedTraps: allSpeedTraps,
+                timestamp: Date.now()
+              }));
             }
           } else {
             ws.send(JSON.stringify({
@@ -990,6 +1285,105 @@ wss.on('connection', (ws) => {
             type: 'pong',
             timestamp: Date.now()
           }));
+          break;
+
+        case 'add_speed_trap':
+          const addUser = connectedUsers.get(userId);
+          if (!addUser || !addUser.isAuthenticated) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Authentication required to add speed traps'
+            }));
+            break;
+          }
+
+          try {
+            const speedTrap = addSpeedTrap(data.latitude, data.longitude, addUser.email);
+            ws.send(JSON.stringify({
+              type: 'speed_trap_add_success',
+              speedTrap: speedTrap,
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to add speed trap: ${error.message}`
+            }));
+          }
+          break;
+
+        case 'verify_speed_trap':
+          const verifyUser = connectedUsers.get(userId);
+          if (!verifyUser || !verifyUser.isAuthenticated) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Authentication required to verify speed traps'
+            }));
+            break;
+          }
+
+          try {
+            const updatedSpeedTrap = verifySpeedTrap(data.speedTrapId, verifyUser.email);
+            ws.send(JSON.stringify({
+              type: 'speed_trap_verify_success',
+              speedTrap: updatedSpeedTrap,
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to verify speed trap: ${error.message}`
+            }));
+          }
+          break;
+
+        case 'remove_speed_trap':
+          const removeUser = connectedUsers.get(userId);
+          if (!removeUser || !removeUser.isAuthenticated) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Authentication required to remove speed traps'
+            }));
+            break;
+          }
+
+          try {
+            const success = removeSpeedTrap(data.speedTrapId, removeUser.email);
+            ws.send(JSON.stringify({
+              type: 'speed_trap_remove_success',
+              speedTrapId: data.speedTrapId,
+              success: success,
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to remove speed trap: ${error.message}`
+            }));
+          }
+          break;
+
+        case 'get_speed_traps':
+          try {
+            let speedTrapsToSend;
+            if (data.latitude && data.longitude) {
+              const radius = data.radius || 10;
+              speedTrapsToSend = getSpeedTrapsNearLocation(data.latitude, data.longitude, radius);
+            } else {
+              speedTrapsToSend = getAllSpeedTraps();
+            }
+            
+            ws.send(JSON.stringify({
+              type: 'speed_traps_data',
+              speedTraps: speedTrapsToSend,
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to get speed traps: ${error.message}`
+            }));
+          }
           break;
 
         default:

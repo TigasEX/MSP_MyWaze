@@ -74,6 +74,10 @@ export const store = reactive({
   // Saved Routes state
   savedRoutes: [], // Array of saved route objects
 
+  // Speed Traps state
+  speedTraps: [], // Array of speed trap objects: { id, lat, lng, addedBy, addedAt, verified, reports }
+  showSpeedTraps: true, // Toggle to show/hide speed traps
+
   // UI state
   modals: {
     vehicleRegistration: false,
@@ -824,5 +828,102 @@ export const store = reactive({
     this.locationSharing.currentUser.name = null;
     this.locationSharing.connectedUsers = [];
     console.log('🔄 Location sharing connection reset but remains enabled')
+  },
+
+  /**
+   * ===== SPEED TRAP MANAGEMENT METHODS =====
+   */
+
+  /**
+   * Add a new speed trap to the store
+   * @param {Object} speedTrap - Speed trap object
+   */
+  addSpeedTrap(speedTrap) {
+    const existingTrapIndex = this.speedTraps.findIndex(trap => trap.id === speedTrap.id);
+    if (existingTrapIndex === -1) {
+      this.speedTraps.push(speedTrap);
+      console.log('🚨 Speed trap added to store:', speedTrap);
+    } else {
+      // Update existing trap
+      this.speedTraps[existingTrapIndex] = speedTrap;
+      console.log('🚨 Speed trap updated in store:', speedTrap);
+    }
+  },
+
+  /**
+   * Remove a speed trap from the store
+   * @param {string} trapId - Speed trap ID to remove
+   */
+  removeSpeedTrap(trapId) {
+    const trapIndex = this.speedTraps.findIndex(trap => trap.id === trapId);
+    if (trapIndex !== -1) {
+      const removedTrap = this.speedTraps.splice(trapIndex, 1)[0];
+      console.log('🗑️ Speed trap removed from store:', removedTrap);
+    }
+  },
+
+  /**
+   * Update speed trap verification/reports
+   * @param {string} trapId - Speed trap ID
+   * @param {Object} updates - Updates to apply
+   */
+  updateSpeedTrap(trapId, updates) {
+    const trap = this.speedTraps.find(trap => trap.id === trapId);
+    if (trap) {
+      Object.assign(trap, updates);
+      console.log('🔄 Speed trap updated:', trap);
+    }
+  },
+
+  /**
+   * Update the entire speed traps list
+   * @param {Array} speedTraps - Array of speed trap objects
+   */
+  updateSpeedTrapsList(speedTraps) {
+    this.speedTraps = speedTraps;
+    console.log(`📊 Updated speed traps list: ${this.speedTraps.length} traps loaded`);
+  },
+
+  /**
+   * Toggle speed trap display visibility
+   */
+  toggleSpeedTraps() {
+    this.showSpeedTraps = !this.showSpeedTraps;
+    console.log(`👁️ Speed traps display: ${this.showSpeedTraps ? 'enabled' : 'disabled'}`);
+  },
+
+  /**
+   * Get speed traps near a specific location
+   * @param {Object} location - Location object with lat, lng
+   * @param {number} radius - Search radius in kilometers (default: 5)
+   * @returns {Array} Array of nearby speed traps
+   */
+  getSpeedTrapsNearLocation(location, radius = 5) {
+    return this.speedTraps.filter(trap => {
+      const distance = this.calculateDistance(
+        location.lat, location.lng,
+        trap.lat, trap.lng
+      );
+      return distance <= radius;
+    });
+  },
+
+  /**
+   * Calculate distance between two points (helper method)
+   * @param {number} lat1 
+   * @param {number} lng1 
+   * @param {number} lat2 
+   * @param {number} lng2 
+   * @returns {number} Distance in kilometers
+   */
+  calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
 })

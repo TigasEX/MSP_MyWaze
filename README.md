@@ -12,6 +12,11 @@ Marisa Basílio - 54550
 Pedro Afonso - 70357
 Tiago Sequeira - 55354
 
+## Screenshots
+
+![Login Screen](https://media.discordapp.net/attachments/1357732915617992918/1366178159028080694/Screenshot_from_2025-04-27_23-22-30.png?ex=6810000f&is=680eae8f&hm=2cc43fd8a59c7eaa1175b2ec2532ff7f420bb2e5514288e62d11193e48f647d3&=&format=webp&quality=lossless&width=1205&height=1132)
+![Navigation Interface](https://media.discordapp.net/attachments/1357732915617992918/1366178159397048441/Screenshot_from_2025-04-27_23-22-54.png?ex=6810000f&is=680eae8f&hm=c7dd69f297742cbc9b2accbfdc888b9c3bf00ee1f240f6d50cc20446dd620cc5&=&format=webp&quality=lossless&width=1279&height=1132)
+
 ## Technologies Used
 
 - **Frontend**: Vue.js 3, HTML5, CSS3
@@ -74,6 +79,25 @@ npm run build
 ```
 
 The built files will be in the `dist` directory, ready to be deployed.
+
+## Usage
+
+1. **Log in or register** to access the navigation features
+2. **Navigation**:
+   - Use WASD keys or on-screen controls to move around the map
+   - Click anywhere on the map to set a destination
+   - Follow the route displayed on the map
+3. **Vehicle Management**:
+   - Click "Register Vehicle" to add a new vehicle to your profile
+   - View your registered vehicles in "My Vehicles"
+4. **Location Sharing**:
+   - Location sharing is automatically enabled for all users
+   - Real-time user locations are shared with a fixed 10-meter precision threshold
+   - See other users' real usernames on the map after authentication
+5. **Safety Features**:
+   - Speed limit warnings based on current location
+   - EV charging station locations displayed automatically
+   - All safety features activate only after user location is established
 
 ## Project Structure
 

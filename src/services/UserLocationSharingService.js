@@ -11,12 +11,14 @@
  * - Automatic reconnection with exponential backoff
  * - User authentication integration
  * - Real username display after authentication
+ * - Speed trap real-time updates integration
  * 
  * Architecture:
  * - WebSocket connection to location sharing server
  * - Event-driven message handling
  * - Haversine distance calculation for location threshold
  * - Automatic session management
+ * - Speed trap service integration
  * 
  * Security:
  * - Location sharing only during active sessions
@@ -25,6 +27,8 @@
  * 
  * @author André Gaspar - 59859, João Lima - 60350, Marisa Basílio - 54550, Pedro Afonso - 70357, Tiago Sequeira - 55354 - MSP 2024/2025 FCT Nova
  */
+
+import { speedTrapService } from './SpeedTrapService.js';
 export class UserLocationSharingService {
   constructor() {
     // WebSocket connection state
@@ -243,7 +247,16 @@ export class UserLocationSharingService {
         break;
 
       default:
-        console.log('Unknown message type:', data.type);
+        // Check if it's a speed trap related message
+        if (data.type && (
+          data.type.startsWith('speed_trap') || 
+          data.type === 'speed_traps_data'
+        )) {
+          // Forward the message to the speed trap service
+          speedTrapService.handleWebSocketMessage(data);
+        } else {
+          console.log('Unknown message type:', data.type);
+        }
     }
   }
 

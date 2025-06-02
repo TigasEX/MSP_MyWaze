@@ -1,0 +1,26 @@
+[
+  [
+    "speedtrap_bb93f1fb9da5f82b",
+    {
+      "id": "speedtrap_bb93f1fb9da5f82b",
+      "latitude": 38.74242908149667,
+      "longitude": -9.178980588912966,
+      "addedBy": "user@user",
+      "addedAt": 1748818478430,
+      "verified": false,
+      "reports": 1
+    }
+  ],
+  [
+    "speedtrap_4f6f7384bfa65ffb",
+    {
+      "id": "speedtrap_4f6f7384bfa65ffb",
+      "latitude": 38.7416064,
+      "longitude": -9.1815936,
+      "addedBy": "user@user",
+      "addedAt": 1748819861437,
+      "verified": false,
+      "reports": 1
+    }
+  ]
+]

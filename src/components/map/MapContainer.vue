@@ -12,8 +12,11 @@
       :show-charging-stations="store.showChargingStations"
       :connected-users="store.locationSharing.connectedUsers"
       :show-other-users="store.locationSharing.showOtherUsers"
+      :speed-traps="store.speedTraps"
+      :show-speed-traps="store.showSpeedTraps"
       @update:center="handleCenterUpdate"
       @click="addMarker"
+      @speed-trap-click="handleSpeedTrapClick"
     />
 
     <!-- Map Controls Section -->
@@ -58,6 +61,15 @@
         :is-loading="isLoadingChargingStations"
         :show-stations="store.showChargingStations"
         @reload-stations="loadNearbyChargingStations"
+      />
+
+      <!-- Speed Trap Indicator -->
+      <SpeedTrapIndicator
+        :trap-count="store.speedTraps.length"
+        :verified-count="verifiedSpeedTrapsCount"
+        :show-speed-traps="store.showSpeedTraps"
+        @toggle-visibility="toggleSpeedTrapsDisplay"
+        @toggle-add-mode="toggleSpeedTrapAddMode"
       />
     </div>
 
@@ -223,11 +235,13 @@ import LocationSharingPanel from './LocationSharingPanel.vue'
 import LocationSharingIndicator from './LocationSharingIndicator.vue'
 import SpeedLimitIndicator from './SpeedLimitIndicator.vue'
 import ChargingStationsIndicator from './ChargingStationsIndicator.vue'
+import SpeedTrapIndicator from './SpeedTrapIndicator.vue'
 import routingService from '@/services/RoutingService.js'
 import speedLimitService from '@/services/SpeedLimitService.js'
 import { ChargingStationService } from '@/services/ChargingStationService.js'
 import { userLocationSharingService } from '@/services/UserLocationSharingService.js'
 import { GeolocationService } from '@/services/GeolocationService.js'
+import speedTrapService from '@/services/SpeedTrapService.js'
 import { store } from '@/store'
 
 /**
@@ -239,6 +253,9 @@ const mapRef = ref(null)
 
 // Charging station service instance
 const chargingStationService = new ChargingStationService()
+
+// Speed trap service instance (using singleton)
+// const speedTrapService = speedTrapService; // Already imported as singleton
 
 // Geolocation service instance
 const geolocationService = new GeolocationService()
@@ -263,6 +280,11 @@ const locationWatchId = ref(null)
 // Count of available charging stations
 const availableStationsCount = computed(() => {
   return store.chargingStations.filter(station => station.isAvailable).length
+})
+
+// Count of verified speed traps
+const verifiedSpeedTrapsCount = computed(() => {
+  return store.speedTraps.filter(trap => trap.verified || (trap.reports && trap.reports >= 3)).length
 })
 
 /**
@@ -323,7 +345,122 @@ const lastChargingStationPosition = ref({ lat: 0, lng: 0 })
 const chargingStationThreshold = 0.01 // About 1km in decimal degrees
 
 /**
- * ===== Map Functions =====
+ * ===== SPEED TRAP FUNCTIONS =====
+ */
+
+// Toggle speed traps display
+const toggleSpeedTrapsDisplay = () => {
+  store.toggleSpeedTraps()
+}
+
+// Toggle speed trap addition mode
+const toggleSpeedTrapAddMode = async () => {
+  if (!store.user.isAuthenticated) {
+    store.addToast({
+      title: '❌ Authentication Required',
+      message: 'Please log in to add speed traps',
+      type: 'error',
+      duration: 3000
+    })
+    return
+  }
+
+  // Instead of toggling a mode, immediately add a speed trap at current location
+  try {
+    const currentPos = store.currentPosition
+    if (!currentPos || !currentPos.lat || !currentPos.lng) {
+      store.addToast({
+        title: '❌ Location Required',
+        message: 'Unable to get your current location',
+        type: 'error',
+        duration: 3000
+      })
+      return
+    }
+
+    console.log(`🚨 Adding speed trap at current location (${currentPos.lat}, ${currentPos.lng})...`)
+    
+    const speedTrap = await speedTrapService.addSpeedTrap(
+      currentPos.lat,
+      currentPos.lng,
+      store.user.email
+    )
+    
+    store.addSpeedTrap(speedTrap)
+    
+    store.addToast({
+      title: '🚨 Speed Trap Added',
+      message: 'Speed trap added at your current location',
+      type: 'success',
+      duration: 3000
+    })
+    
+    console.log('✅ Speed trap added successfully:', speedTrap)
+  } catch (error) {
+    console.error('❌ Failed to add speed trap:', error)
+    store.addToast({
+      title: '❌ Error',
+      message: 'Failed to add speed trap: ' + error.message,
+      type: 'error',
+      duration: 5000
+    })
+  }
+}
+
+// Handle speed trap click (verify/report)
+const handleSpeedTrapClick = async (speedTrap) => {
+  if (!store.user.isAuthenticated) {
+    store.addToast({
+      title: '❌ Authentication Required',
+      message: 'Please log in to verify speed traps',
+      type: 'error',
+      duration: 3000
+    })
+    return
+  }
+
+  try {
+    console.log('🔄 Verifying speed trap:', speedTrap.id)
+    
+    const updatedTrap = await speedTrapService.verifySpeedTrap(speedTrap.id)
+    store.updateSpeedTrap(speedTrap.id, updatedTrap)
+    
+    store.addToast({
+      title: '✅ Speed Trap Verified',
+      message: 'Thank you for verifying this speed trap',
+      type: 'success',
+      duration: 3000
+    })
+    
+    console.log('✅ Speed trap verified successfully:', updatedTrap)
+  } catch (error) {
+    console.error('❌ Failed to verify speed trap:', error)
+    store.addToast({
+      title: '❌ Error',
+      message: 'Failed to verify speed trap: ' + error.message,
+      type: 'error',
+      duration: 5000
+    })
+  }
+}
+
+// Load speed traps from server
+const loadSpeedTraps = async () => {
+  try {
+    console.log('📊 Loading speed traps...')
+    
+    const position = store.currentPosition
+    const speedTraps = await speedTrapService.getSpeedTraps(position.lat, position.lng, 10) // 10km radius
+    
+    store.updateSpeedTrapsList(speedTraps)
+    console.log(`✅ Loaded ${speedTraps.length} speed traps`)
+  } catch (error) {
+    console.error('❌ Failed to load speed traps:', error)
+  }
+}
+
+/**
+ * ===== MAP FUNCTIONS =====
  */
 
 // Handle center update from map
@@ -927,6 +1064,9 @@ const initializeDependentServices = async () => {
         await loadNearbyChargingStations()
       }
       
+      // Load nearby speed traps
+      await loadSpeedTraps()
+      
       // Automatically enable location sharing (always opted-in)
       await enableLocationSharing()
       
@@ -943,6 +1083,9 @@ const initializeDependentServices = async () => {
       if (store.showChargingStations) {
         await loadNearbyChargingStations()
       }
+      
+      // Load speed traps using default position
+      await loadSpeedTraps()
       
       await enableLocationSharing()
     }
@@ -997,6 +1140,9 @@ const enableLocationSharing = async () => {
     
     // Connect to WebSocket server
     userLocationSharingService.connect('ws://localhost:8080')
+    
+    // Connect speed trap service to the same WebSocket
+    speedTrapService.setWebSocketService(userLocationSharingService)
     
     // Start watching user location for sharing
     await startLocationWatching()
@@ -1099,6 +1245,43 @@ const setupLocationSharingEventHandlers = () => {
       message: error,
       type: 'error',
       duration: 5000
+    })
+  }
+  
+  // Speed trap event handlers
+  speedTrapService.onSpeedTrapAdded = (speedTrap) => {
+    console.log('🚨 Received new speed trap:', speedTrap)
+    store.addSpeedTrap(speedTrap)
+    
+    store.addToast({
+      title: '🚨 New Speed Trap',
+      message: `Speed trap added by ${speedTrap.addedBy}`,
+      type: 'info',
+      duration: 3000
+    })
+  }
+  
+  speedTrapService.onSpeedTrapVerified = (speedTrap) => {
+    console.log('✅ Speed trap verified:', speedTrap)
+    store.updateSpeedTrap(speedTrap.id, speedTrap)
+    
+    store.addToast({
+      title: '✅ Speed Trap Verified',
+      message: 'A speed trap has been verified by another user',
+      type: 'success',
+      duration: 3000
+    })
+  }
+  
+  speedTrapService.onSpeedTrapRemoved = (speedTrapId) => {
+    console.log('❌ Speed trap removed:', speedTrapId)
+    store.removeSpeedTrap(speedTrapId)
+    
+    store.addToast({
+      title: '❌ Speed Trap Removed',
+      message: 'A speed trap has been removed',
+      type: 'info',
+      duration: 3000
     })
   }
 }

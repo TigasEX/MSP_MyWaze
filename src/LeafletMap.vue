@@ -85,6 +85,34 @@
           </div>
         </l-tooltip>
       </l-marker>
+
+      <!-- Speed Trap Markers -->
+      <l-marker
+        v-if="showSpeedTraps"
+        v-for="speedTrap in speedTraps"
+        :key="`speed-trap-${speedTrap.id}`"
+        :lat-lng="{ lat: speedTrap.lat, lng: speedTrap.lng }"
+        :icon="getSpeedTrapIcon(speedTrap)"
+        @click="() => $emit('speed-trap-click', speedTrap)"
+      >
+        <l-tooltip>
+          <div class="speed-trap-tooltip">
+            <div class="trap-header">🚨 Speed Trap</div>
+            <div class="trap-info">
+              <div class="trap-added-by">Added by: {{ speedTrap.addedBy || 'Anonymous' }}</div>
+              <div class="trap-added-at">
+                {{ formatSpeedTrapDate(speedTrap.addedAt) }}
+              </div>
+              <div class="trap-reports">
+                Reports: {{ speedTrap.reports || 0 }}
+              </div>
+              <div v-if="speedTrap.verified" class="trap-verified">
+                ✅ Verified
+              </div>
+            </div>
+          </div>
+        </l-tooltip>
+      </l-marker>
       
       <!-- Route Path -->
       <l-polyline
@@ -149,6 +177,14 @@ const props = defineProps({
   showOtherUsers: {
     type: Boolean,
     default: true
+  },
+  speedTraps: {
+    type: Array,
+    default: () => []
+  },
+  showSpeedTraps: {
+    type: Boolean,
+    default: true
   }
 });
 
@@ -160,7 +196,7 @@ watch(() => props.routePath, (newPath) => {
   console.log('Route path length:', newPath ? newPath.length : 0);
 }, { immediate: true });
 
-const emit = defineEmits(['update:center', 'click']);
+const emit = defineEmits(['update:center', 'click', 'speed-trap-click']);
 
 // Map state
 const mapRef = ref(null);
@@ -169,6 +205,35 @@ const center = computed({
   get: () => props.initialCenter,
   set: (value) => emit('update:center', value)
 });
+
+// Speed trap icon
+const speedTrapIcon = computed(() => {
+  return L.divIcon({
+    html: '🚨',
+    className: 'speed-trap-icon',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+});
+
+// Generate speed trap icon with status
+const getSpeedTrapIcon = (speedTrap) => {
+  const isVerified = speedTrap.verified || (speedTrap.reports && speedTrap.reports >= 3);
+  const color = isVerified ? '#dc3545' : '#ffc107'; // Red for verified, orange for unverified
+  const bgColor = isVerified ? '#f8d7da' : '#fff3cd';
+  
+  return L.divIcon({
+    html: `
+      <div class="speed-trap-marker-icon" style="background-color: ${bgColor}; border-color: ${color}">
+        <span style="color: ${color}">🚨</span>
+        ${isVerified ? '<div class="verified-badge">✓</div>' : ''}
+      </div>
+    `,
+    className: 'speed-trap-marker-container',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
+  });
+};
 
 // Car icon
 const carIcon = computed(() => {
@@ -275,6 +340,20 @@ const formatLastSeen = (timestamp) => {
   if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  
+  return new Date(timestamp).toLocaleDateString();
+};
+
+// Format speed trap date
+const formatSpeedTrapDate = (timestamp) => {
+  if (!timestamp) return 'Unknown';
+  
+  const now = Date.now();
+  const diff = now - timestamp;
+  
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} minutes ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)} days ago`;
   
   return new Date(timestamp).toLocaleDateString();
 };
@@ -528,6 +607,94 @@ onUnmounted(() => {
 
 .user-accuracy {
   color: #007bff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Speed Trap Markers */
+.speed-trap-marker-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.speed-trap-marker-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  border: 2px solid;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.speed-trap-marker-container:hover .speed-trap-marker-icon {
+  transform: scale(1.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.verified-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  background-color: #28a745;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: bold;
+  border: 1px solid white;
+}
+
+/* Speed Trap Tooltip Styles */
+.speed-trap-tooltip {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.trap-header {
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #dc3545;
+  text-align: center;
+}
+
+.trap-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trap-added-by {
+  color: #666;
+  font-size: 11px;
+}
+
+.trap-added-at {
+  color: #666;
+  font-size: 11px;
+}
+
+.trap-reports {
+  color: #007bff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.trap-verified {
+  color: #28a745;
   font-size: 11px;
   font-weight: 600;
 }
